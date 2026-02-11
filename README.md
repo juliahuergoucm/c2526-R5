@@ -16,11 +16,8 @@ Raíz del proyecto: `grupo5/`
 pd1/
 
 └── grupo5/
-
     ├── raw/
-    
-    │   ├── gtfs_static/
-    
+    │   ├── gtfs_static/    
     │   ├── gtfs_realtime/
     │   ├── weather/
     │   └── events/
