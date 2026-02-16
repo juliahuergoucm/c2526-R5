@@ -16,21 +16,25 @@ url = "https://archive-api.open-meteo.com/v1/archive"
 
 parametros = {
     "latitude": 40.47,
-    "longitude" : -73.58,
-    "start_date" : "2024-01-01",
-    "end_date" : "2025-01-01",
-    "hourly" : "temperature_2m,rain,snowfall",
+    "longitude" : -73.58, #coordenadas de Central Park
+    "start_date" : "2025-01-01",
+    "end_date" : "2026-01-01",
+    "hourly" : "temperature_2m,rain,snowfall,precipitation,snow_depth,visibility",
     "timezone" : "auto"
 }
 try:
     respuestas = openmeteo.weather_api(url, params = parametros)
     respuesta = respuestas[0]
-    print(respuesta)
     hourly = respuesta.Hourly()
-    print(hourly)
     temp_array = hourly.Variables(0).ValuesAsNumpy()
     lluvia_array = hourly.Variables(1).ValuesAsNumpy()
     nieve_array = hourly.Variables(2).ValuesAsNumpy()
+    prec_array = hourly.Variables(3).ValuesAsNumpy()
+    nieve_prof_array = hourly.Variables(4).ValuesAsNumpy()
+    visib_array = hourly.Variables(5).ValuesAsNumpy()
+
+
+
 
     dates = pd.date_range(
             start=pd.to_datetime(hourly.Time(), unit="s", utc=True),
@@ -40,13 +44,20 @@ try:
     )
     
     datos = {
-        "fecha" : dates,
-        "temperatura" : temp_array,
-        "lluvia" : lluvia_array,
-        "nieve": nieve_array,
+        "Fecha" : dates,
+        "Temperatura" : temp_array,
+        "Lluvia" : lluvia_array,
+        "Nieve": nieve_array,
+        "Precipitacion" : prec_array,
+        "Profundidad de nieve" : nieve_prof_array,
+        "Visibilidad" : visib_array
     }
-
     df = pd.DataFrame(datos)
+    
+    for columna in df.columns:
+        nulos = df[columna].isnull().sum()
+        print(columna, " tiene ", nulos, "con porcentaje de nulos del ", nulos / df[columna].count())
+
     df.to_parquet("clima_2024.parquet", index = False)
     print("Guardado")
 except Exception as e:
