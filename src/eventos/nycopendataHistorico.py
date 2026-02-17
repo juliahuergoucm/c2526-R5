@@ -103,5 +103,44 @@ df['nivel_riesgo_tipo'] = df['event_type'].map(riesgo_map)
 
 print(df)
 print("Proceso finalizado")
-df.to_csv("eventos_2025.csv", index=False, encoding="utf-8")
-print("Archivo CSV generado correctamente")
+print("Subiendo a MinIO")
+#parte de subir al minio pero falta comprobar si funciona
+from minio import Minio
+import tempfile
+
+MINIO_ENDPOINT = "minio.fdi.ucm.es"
+access_key = os.getenv("MINIO_ACCESS_KEY")
+secret_key = os.getenv("MINIO_SECRET_KEY")
+
+assert access_key is not None, "Falta la variable de entorno MINIO_ACCESS_KEY"
+assert secret_key is not None, "Falta la variable de entorno MINIO_SECRET_KEY"
+
+client = Minio(
+    MINIO_ENDPOINT,
+    access_key=access_key,
+    secret_key=secret_key,
+    secure=True
+)
+
+bucket = "pd1"
+object_name = "grupo5/raw/eventos_2025.parquet"
+
+
+tmp_path = None
+try:
+    with tempfile.NamedTemporaryFile(suffix=".parquet", delete=False) as tmp:
+        tmp_path = tmp.name
+
+    df.to_parquet(tmp_path, compression="snappy")
+
+    client.fput_object(
+        bucket,
+        object_name,
+        tmp_path
+    )
+
+    print("Parquet subido correctamente a pd1/grupo5/raw/eventos_2025.parquet")
+finally:
+    if tmp_path and os.path.exists(tmp_path):
+        os.remove(tmp_path)
+        print("Archivo temporal parquet eliminado del disco")
