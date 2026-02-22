@@ -16,6 +16,9 @@ data/raw/*
 data/processed/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
+# Remove if needed to perform tests
+*.csv
+*.parquet
 
 # OS
 .DS_Store
