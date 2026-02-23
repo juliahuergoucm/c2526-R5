@@ -115,10 +115,7 @@ dependencies = [
     { name = "geopy" },
     { name = "gtfs-realtime-bindings" },
     { name = "matplotlib" },
-<<<<<<< HEAD
     { name = "meteostat" },
-=======
->>>>>>> 8a319a034b3ef75efd28e632f0e9c685ef9262c0
     { name = "minio" },
     { name = "numpy" },
     { name = "openmeteo-requests" },
