@@ -19,6 +19,7 @@ data/processed/*
 # Remove if needed to perform tests
 *.csv
 *.parquet
+*.pb
 
 # OS
 .DS_Store
