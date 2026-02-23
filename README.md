@@ -126,6 +126,7 @@ export MINIO_SECRET_KEY=...
 ### Crear entorno, instalar dependencias y ejecutar scripts
 
 uv sync
+
 uv run python src/...
 
 ## Autores
@@ -137,4 +138,5 @@ uv run python src/...
 - Mario González
 - Sergio Dueñas
 - Juan Jurado
+
 Curso 2025-2026
