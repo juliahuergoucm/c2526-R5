@@ -121,6 +121,7 @@ riesgo_map = {
 df['nivel_riesgo_tipo'] = df['event_type'].map(riesgo_map)
 df = df[df["nivel_riesgo_tipo"] >= 8]
 df = df.drop_duplicates(subset=["event_name", "start_date_time", "borough", "event_location"])
+df["score"] = df["nivel_riesgo_tipo"].map({8: 0.8, 9: 0.9, 10: 1.0})
 print(df)
 print("Proceso finalizado")
 print("Calculando coordenadas")
@@ -223,39 +224,6 @@ try:
 except:
     print("Error de conexión ¿está arrancado el servidor?")
 
-columnas_utiles = ['GTFS Stop ID', 'Stop Name', 'Daytime Routes', 'GTFS Longitude', 'GTFS Latitude']
-
-
-tiene_gtfs = all(col in df.columns for col in columnas_utiles)
-
-if tiene_gtfs:
-    df_limpio = df[columnas_utiles].copy()
-
-    df_limpio = df_limpio.rename(columns={
-        'GTFS Stop ID': 'GTFS_id_estacion',
-        'Stop Name': 'nombre',
-        'Daytime Routes': 'lineas'
-    })
-
-    df_limpio['ubicacion'] = df_limpio.apply(
-        lambda fila: {
-            "type": "Point",
-            "coordinates": [fila['GTFS Longitude'], fila['GTFS Latitude']]
-        }, axis=1
-    )
-
-    df_limpio = df_limpio.drop(columns=['GTFS Longitude', 'GTFS Latitude'])
-
-    documentos_para_mongo = df_limpio.to_dict(orient='records')
-    db.subway.drop()
-    db.subway.insert_many(documentos_para_mongo)
-
-    db.subway.drop_indexes()
-    db.subway.create_index({"ubicacion": "2dsphere"})
-else:
-    print("AVISO: df no contiene columnas GTFS de paradas. "
-          "No se recrea db.subway desde este df (eventos).")
-
 
 def cursor_paradas_afectedas(coordinates):  # coordinates de esta forma [longitud, latitud]
     cursor = db.subway.find(
@@ -291,4 +259,12 @@ df["paradas_afectadas"] = df.apply(
     axis=1
 )
 
-print(df[["event_name", "event_location", "borough", "lon", "lat", "paradas_afectadas"]].head(10))
+#print(df[["event_name", "event_location", "borough", "lon", "lat", "paradas_afectadas"]].head(10))
+df["hora_inicio"] = df["start_date_time"].dt.strftime("%H:%M")
+df["hora_salida_estimada"] = df["end_date_time"].dt.strftime("%H:%M")
+
+df = df.rename(columns={"event_name": "nombre_evento"})
+
+df = df[["nombre_evento", "hora_inicio", "hora_salida_estimada", "score", "paradas_afectadas"]]
+print(df.head(10))
+print(len(df))
