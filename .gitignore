@@ -16,12 +16,13 @@ data/raw/*
 data/processed/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
+# Remove if needed to perform tests
+*.csv
+*.parquet
+*.pb
 
 # OS
 .DS_Store
-
-#parquet
-*.parquet
 
 #json
 .json
@@ -32,3 +33,11 @@ data/processed/*
 #fichero stop_times
 src/tiempo_real_metro/stop_times.txt
 
+.src/eventos/.csv
+
+# Google OAuth secrets
+src/alertas_oficiales_tiempo_real/token.json
+src/alertas_oficiales_tiempo_real/credentials.json
+
+# Dataset local
+src/alertas_oficiales_tiempo_real/mta_dataset.csv
