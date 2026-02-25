@@ -114,6 +114,7 @@ El proyecto utiliza Python y el gestor de dependencias `uv`.
 - Python >= 3.13
 - uv instalado
 - Acceso a MinIO (credenciales proporcionadas al grupo)
+- MongoDB instalado, ejecutar proyecto con el cliente abierto en consola
 
 ### Configuración de variables de entorno
 
@@ -121,6 +122,9 @@ Se recomienda utilizar variables de entorno del sistema (se podría utilizar .en
 ```
 export MINIO_ACCESS_KEY=...
 export MINIO_SECRET_KEY=...
+export MOBILITY_DATABASE_REFRESH_TOKEN=...
+export NYC_OPEN_DATA_TOKEN=...
+export CLIENT_ID_SEATGEEK=...
 ```
 
 ### Crear entorno, instalar dependencias y ejecutar scripts
