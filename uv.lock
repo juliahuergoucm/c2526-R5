@@ -151,11 +151,8 @@ requires-dist = [
     { name = "fastapi" },
     { name = "geopy", specifier = ">=2.4.1" },
     { name = "gtfs-realtime-bindings" },
-<<<<<<< HEAD
-=======
     { name = "matplotlib", specifier = ">=3.10.8" },
     { name = "meteostat", specifier = ">=2.1.3" },
->>>>>>> 4dbacc9397144b7eb9e3c65dbc7c2586bf371575
     { name = "minio" },
     { name = "numpy" },
     { name = "openmeteo-requests" },
