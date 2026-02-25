@@ -19,7 +19,7 @@ parametros = {
     "longitude" : -73.58, #coordenadas de Central Park
     "start_date" : "2025-01-01",
     "end_date" : "2026-01-01",
-    "hourly" : "temperature_2m,rain,snowfall,precipitation,snow_depth,visibility",
+    "hourly" : ["temperature_2m", "rain", "precipitation", "wind_speed_10m", "snowfall", "cloud_cover"],
     "timezone" : "auto"
 }
 try:
@@ -28,10 +28,10 @@ try:
     hourly = respuesta.Hourly()
     temp_array = hourly.Variables(0).ValuesAsNumpy()
     lluvia_array = hourly.Variables(1).ValuesAsNumpy()
-    nieve_array = hourly.Variables(2).ValuesAsNumpy()
-    prec_array = hourly.Variables(3).ValuesAsNumpy()
-    nieve_prof_array = hourly.Variables(4).ValuesAsNumpy()
-    visib_array = hourly.Variables(5).ValuesAsNumpy()
+    prec_array = hourly.Variables(2).ValuesAsNumpy()
+    wind_speed_array = hourly.Variables(3).ValuesAsNumpy()
+    nieve_array = hourly.Variables(4).ValuesAsNumpy()
+    cloud_cover_array = hourly.Variables(5).ValuesAsNumpy()
 
 
 
@@ -44,21 +44,36 @@ try:
     )
     
     datos = {
-        "Fecha" : dates,
-        "Temperatura" : temp_array,
-        "Lluvia" : lluvia_array,
-        "Nieve": nieve_array,
-        "Precipitacion" : prec_array,
-        "Profundidad de nieve" : nieve_prof_array,
-        "Visibilidad" : visib_array
+        "Date" : dates,
+        "Temperature" : temp_array,
+        "Rain" : lluvia_array,
+        "Precipitation": prec_array,
+        "Wind Speed" : wind_speed_array,
+        "Snow" : nieve_array,
+        "Cloud Cover" : cloud_cover_array
     }
     df = pd.DataFrame(datos)
+    print(df)
     
-    for columna in df.columns:
-        nulos = df[columna].isnull().sum()
-        print(columna, " tiene ", nulos, "con porcentaje de nulos del ", nulos / df[columna].count())
+    import os
+    ACCESS_KEY = os.getenv('MINIO_ACCESS_KEY')
+    assert ACCESS_KEY is not None, 'La variable de entorno MINIO_ACCESS_KEY no está definida.'
+    SECRET_KEY = os.getenv('MINIO_SECRET_KEY')
+    assert SECRET_KEY is not None, 'La variable de entorno MINIO_SECRET_KEY no está definida.'
 
-    df.to_parquet("clima_2024.parquet", index = False)
-    print("Guardado")
+    from minio import Minio
+    client = Minio(endpoint='minio.fdi.ucm.es', access_key=ACCESS_KEY, secret_key=SECRET_KEY)
+    import io
+    buffer = io.BytesIO()
+    df.to_parquet(buffer)
+    buffer.seek(0)  # Volver al inicio del buffer para que se lea correctamente
+    client.put_object(bucket_name='pd1', object_name='grupo5/processed/Clima/ClimaHistorico2025.parquet',
+    data=buffer, length=buffer.getbuffer().nbytes, content_type='application/octet-stream')
+    print(f'DataFrame guardado como parquet y subido a MinIO como comun/df1.parquet en el bucket pd1.')
+    
+
+
+
+
 except Exception as e:
     print("Error", e)
