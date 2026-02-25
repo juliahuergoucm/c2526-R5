@@ -8,6 +8,13 @@ from pathlib import Path
 from google.transit import gtfs_realtime_pb2
 
 
+"""
+Para poder crear el segundo dataframe es necesario tener descargado un archivo de las
+paradas previstas de los trenes. Este se puede encontrar con este link: https://www.mta.info/developers
+Habría que descargar el Supplemented GTFS y se nos descargará un zip. El que nos interesa se llama: stop_times.txt
+"""
+
+
 # ─────────────────────────────────────────────
 #  Fuentes de datos MTA Real Time
 # ─────────────────────────────────────────────
