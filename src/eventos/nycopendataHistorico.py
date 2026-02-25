@@ -3,7 +3,6 @@ import requests
 from datetime import datetime, timedelta
 import pandas as pd
 import json
-from pymongo import MongoClient
 import numpy as np
 import io
 from minio import Minio

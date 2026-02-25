@@ -279,7 +279,7 @@ if __name__ == "__main__":
 
         try:
             upload_df_parquet(MINIO_ACCESS_KEY, MINIO_SECRET_KEY, object_name, df_dia)
-            print(f"Subido: {DEFAULT_BUCKET}/{object_name} (filas: {len(df_dia)})")
+            print(f"Subido: {DEFAULT_BUCKET}/{object_name} (número de filas: {len(df_dia)})")
             subidos += 1
         except Exception as e:
             print(f"Error subiendo {object_name}: {e}")
