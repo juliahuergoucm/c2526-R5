@@ -1,11 +1,12 @@
-import os
 import requests
 from datetime import datetime
 import pandas as pd
 import numpy as np
-import json
 from pathlib import Path
 from google.transit import gtfs_realtime_pb2
+import urllib.request
+import zipfile
+import io
 
 
 """
@@ -236,8 +237,14 @@ def creacion_df_previsto():
     Creación de dataframe de horarios previstos
     """
 
-    BASE_DIR = Path(__file__).parent
-    df = pd.read_csv(BASE_DIR / 'stop_times.txt', sep = ',')
+    url = "https://rrgtfsfeeds.s3.amazonaws.com/gtfs_supplemented.zip"
+
+    with urllib.request.urlopen(url) as response:
+        zip_data = io.BytesIO(response.read())
+
+    with zipfile.ZipFile(zip_data, 'r') as z:
+        with z.open("stop_times.txt") as f:
+            df = pd.read_csv(f)
 
     #Día en el que se lleva a cabo el servivio, viene dado como parte del trip_id
     df['day'] = df['trip_id'].str.split('-').str[-2]

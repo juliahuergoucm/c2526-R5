@@ -30,9 +30,6 @@ data/processed/*
 #csv
 .csv
 
-#fichero stop_times
-src/tiempo_real_metro/stop_times.txt
-
 .src/eventos/.csv
 
 # Google OAuth secrets
