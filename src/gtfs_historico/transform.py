@@ -224,40 +224,36 @@ def transform_gtfs_processed_range_to_cleaned(
         )
 
 
-if __name__ == "__main__":
-    import argparse
+def run_transform(start: str, end: str) -> None:
+    """Función usada por runner externo para ejecutar la transformacion.
+
+    Convierte string dates a objetos ``date``, obtiene credenciales de MinIO 
+    de las variables de entorno y delega a transform_gtfs_processed_range_to_cleaned
+    """
     from datetime import datetime
 
-    parser = argparse.ArgumentParser(
-        description="Transforma datos GTFS processed -> cleaned por rango de fechas"
-    )
+    access_key = os.getenv("MINIO_ACCESS_KEY")
+    if access_key is None:
+        raise AssertionError("MINIO_ACCESS_KEY no definida")
 
-    parser.add_argument(
-        "--start",
-        required=True,
-        help="Fecha inicio en formato YYYY-MM-DD"
-    )
+    secret_key = os.getenv("MINIO_SECRET_KEY")
+    if secret_key is None:
+        raise AssertionError("MINIO_SECRET_KEY no definida")
 
-    parser.add_argument(
-        "--end",
-        required=True,
-        help="Fecha fin en formato YYYY-MM-DD"
-    )
-
-    args = parser.parse_args()
-
-    ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
-    assert ACCESS_KEY is not None, "MINIO_ACCESS_KEY no definida"
-
-    SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
-    assert SECRET_KEY is not None, "MINIO_SECRET_KEY no definida"
-
-    start = datetime.strptime(args.start, "%Y-%m-%d").date()
-    end = datetime.strptime(args.end, "%Y-%m-%d").date()
+    start_date = datetime.strptime(start, "%Y-%m-%d").date()
+    end_date = datetime.strptime(end, "%Y-%m-%d").date()
 
     transform_gtfs_processed_range_to_cleaned(
-        start=start,
-        end=end,
-        access_key=ACCESS_KEY,
-        secret_key=SECRET_KEY,
+        start=start_date,
+        end=end_date,
+        access_key=access_key,
+        secret_key=secret_key,
     )
+
+
+if __name__ == "__main__":
+    start = date(2025, 12, 1)
+    end = date(2025, 12, 31)
+
+    # delegar a función principal de transformación
+    run_transform(start, end)
