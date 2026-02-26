@@ -1,12 +1,7 @@
-# Contrato de ingesta: `run_extraccion` y `src/<source>/ingest.py`
+# Contrato de ingesta: `run_extraccion` y `run_transform`
 
-Este documento define el “contrato” mínimo que deben cumplir los módulos de ingesta
-por fuente para que el orquestador `run_extraccion` funcione correctamente.
-
-## Objetivo
-
-`run_extraccion` orquesta la etapa de **extracción/ingesta** (capa `raw/`) para una o varias
-fuentes de datos, ejecutando el módulo `ingest.py` correspondiente a cada fuente.
+Este documento define el “contrato” mínimo que deben cumplir los módulos de ingesta y transformación
+por fuente para que los orquestadores `run_extraccion` y `run_transform` funcionen correctamente.
 
 ---
 
