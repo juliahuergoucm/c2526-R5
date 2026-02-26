@@ -254,9 +254,7 @@ if __name__ == "__main__":
     print(f"Extrayendo eventos deportivos para el año {ANIO_A_EXTRAER}...")
     df = extraccion_nyc_anual(ANIO_A_EXTRAER)
 
-    if df.empty:
-        print("No hay eventos para el año indicado.")
-        exit()
+
 
     if df_paradas is not None:
         print("Calculando paradas afectadas en radio de 700m...")

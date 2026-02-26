@@ -1,3 +1,4 @@
+import io
 import os
 import time
 import random
@@ -5,6 +6,7 @@ import requests
 import pandas as pd
 import numpy as np
 from collections import defaultdict
+from minio import Minio
 
 BASE_URL = "https://api.setlist.fm/rest/1.0"
 SEARCH_SETLISTS_URL = f"{BASE_URL}/search/setlists"
@@ -15,10 +17,30 @@ if not API_KEY:
 
 headers = {"x-api-key": API_KEY, "Accept": "application/json"}
 
-# --- FUNCIONES DE APOYO PARA PARADAS DE METRO (DEL SEGUNDO ARCHIVO) ---
+DEFAULT_ENDPOINT = "minio.fdi.ucm.es"
+DEFAULT_BUCKET   = "pd1"
+MAX_PAGINAS_API  = 500
+
+
+# ─────────────────────────────────────────────
+#  MinIO
+# ─────────────────────────────────────────────
+def minio_client(access_key, secret_key, endpoint=DEFAULT_ENDPOINT):
+    return Minio(endpoint, access_key=access_key, secret_key=secret_key)
+
+
+def upload_df_parquet(access_key, secret_key, object_name, df,
+                      endpoint=DEFAULT_ENDPOINT, bucket=DEFAULT_BUCKET):
+    c = minio_client(access_key, secret_key, endpoint)
+    buf = io.BytesIO()
+    df.to_parquet(buf, index=False)
+    buf.seek(0)
+    c.put_object(bucket, object_name, buf, length=buf.getbuffer().nbytes)
+
+
+# --- FUNCIONES DE APOYO PARA PARADAS DE METRO ---
 
 def cargar_paradas_df():
-    """Descarga el CSV del metro de NY y lo prepara como DataFrame."""
     url = "https://data.ny.gov/api/views/39hk-dx4f/rows.csv?accessType=DOWNLOAD"
     try:
         df = pd.read_csv(url)
@@ -36,7 +58,6 @@ def cargar_paradas_df():
         return None
 
 def obtener_paradas_afectadas(coords, df_paradas, max_metros=500):
-    """Calcula la distancia Haversine y devuelve paradas a menos de max_metros."""
     if not coords or None in coords or df_paradas is None or df_paradas.empty:
         return []
     
@@ -54,8 +75,13 @@ def obtener_paradas_afectadas(coords, df_paradas, max_metros=500):
     cercanas = df_paradas[distancias <= max_metros]
     return [(row['nombre'], row['lineas']) for _, row in cercanas.iterrows()]
 
+def convertir_fecha(fecha_str):
+    try:
+        return pd.to_datetime(fecha_str, format="%d-%m-%Y").strftime("%Y-%m-%d")
+    except Exception:
+        return fecha_str
+
 def fusionar_lista_estaciones(lista_tuplas):
-    """Fusiona líneas con el mismo nombre de estación."""
     if not isinstance(lista_tuplas, list) or not lista_tuplas:
         return []
     estaciones_fusionadas = defaultdict(set)
@@ -63,41 +89,67 @@ def fusionar_lista_estaciones(lista_tuplas):
         estaciones_fusionadas[nombre].update(str(lineas).split())
     return [(nombre, " ".join(sorted(lineas_set))) for nombre, lineas_set in estaciones_fusionadas.items()]
 
-# --- LÓGICA ORIGINAL DE SETLIST.FM ---
 
-def request_with_retry(url, headers, params=None, timeout=30, max_retries=8, base_sleep=1.0):
+# --- LÓGICA DE SETLIST.FM OPTIMIZADA ---
+
+def request_with_retry(session, url, params=None, timeout=30, max_retries=8, base_sleep=2.0):
     for attempt in range(1, max_retries + 1):
-        r = requests.get(url, headers=headers, params=params, timeout=timeout)
-        if r.status_code == 429:
-            retry_after = r.headers.get("Retry-After")
-            wait = float(retry_after) if retry_after else base_sleep * (2 ** (attempt - 1)) + random.uniform(0, 0.5)
+        try:
+            r = session.get(url, params=params, timeout=timeout)
+            
+            if r.status_code == 429:
+                retry_after = r.headers.get("Retry-After")
+                wait = float(retry_after) if retry_after else base_sleep * (2 ** (attempt - 1)) + random.uniform(1, 2)
+                print(f"  [Límite API] Esperando {wait:.2f}s...")
+                time.sleep(wait)
+                continue
+                
+            if 500 <= r.status_code < 600:
+                wait = base_sleep * (2 ** (attempt - 1)) + random.uniform(0.5, 1.5)
+                print(f"  [Error {r.status_code}] Reintentando en {wait:.2f}s...")
+                time.sleep(wait)
+                continue
+                
+            if r.status_code >= 400:
+                raise RuntimeError(f"HTTP {r.status_code}: {r.text}")
+                
+            return r
+            
+        except requests.exceptions.RequestException as e:
+            wait = base_sleep * (2 ** (attempt - 1)) + random.uniform(1, 3)
+            print(f"  [Fallo de Red] {type(e).__name__}. Reintentando en {wait:.2f}s...")
             time.sleep(wait)
-            continue
-        if 500 <= r.status_code < 600:
-            time.sleep(base_sleep * (2 ** (attempt - 1)) + random.uniform(0, 0.5))
-            continue
-        if r.status_code >= 400:
-            raise RuntimeError(f"HTTP {r.status_code}: {r.text}")
-        return r
+
     raise RuntimeError(f"No se pudo completar la petición tras {max_retries} reintentos.")
 
-def fetch_all_setlists_nyc_2025(page_sleep=1.2) -> list[dict]:
+def fetch_all_setlists_nyc_2025(pagina_inicio=1) -> list[dict]:
     all_items = []
-    page, total = 1, None
+    page, total = pagina_inicio, None
     params_base = {"cityName": "New York", "stateCode": "NY", "countryCode": "US", "year": 2025}
 
-    while True:
-        params = {**params_base, "p": page}
-        r = request_with_retry(SEARCH_SETLISTS_URL, headers=headers, params=params)
-        payload = r.json()
-        batch = payload.get("setlist", [])
-        all_items.extend(batch)
-        if total is None:
-            total = int(payload.get("total", 0))
-        print(f"Página {page} -> acumulado: {len(all_items)}/{total}")
-        if len(all_items) >= total or not batch: break
-        page += 1
-        time.sleep(page_sleep)
+    with requests.Session() as session:
+        session.headers.update(headers)
+
+        while True:
+            params = {**params_base, "p": page}
+            r = request_with_retry(session, SEARCH_SETLISTS_URL, params=params)
+            payload = r.json()
+            batch = payload.get("setlist", [])
+            all_items.extend(batch)
+
+            if total is None:
+                total = int(payload.get("total", 0))
+
+            print(f"Página {page} -> acumulado: {len(all_items)}/{total}")
+
+            if len(all_items) >= total or not batch or page >= MAX_PAGINAS_API:
+                if page >= MAX_PAGINAS_API:
+                    print(f"  [Límite API] Alcanzado el máximo de {MAX_PAGINAS_API} páginas.")
+                break
+
+            page += 1
+            time.sleep(3 + random.uniform(1, 2))
+
     return all_items
 
 def to_dataframe(setlists: list[dict], df_paradas) -> pd.DataFrame:
@@ -108,7 +160,6 @@ def to_dataframe(setlists: list[dict], df_paradas) -> pd.DataFrame:
         coords = city.get("coords", {}) or {}
         artist = s.get("artist", {}) or {}
 
-        # Coordenadas para el cálculo de paradas
         lon, lat = coords.get("long"), coords.get("lat")
         paradas = []
         if lon and lat:
@@ -116,7 +167,7 @@ def to_dataframe(setlists: list[dict], df_paradas) -> pd.DataFrame:
             paradas = fusionar_lista_estaciones(paradas_raw)
 
         rows.append({
-            "fecha_inicio": s.get("eventDate"), 
+            "fecha_inicio": convertir_fecha(s.get("eventDate")),
             "nombre_evento": artist.get("name"),
             "venue_name": venue.get("name"),
             "lat": lat,
@@ -127,7 +178,6 @@ def to_dataframe(setlists: list[dict], df_paradas) -> pd.DataFrame:
 
 if __name__ == "__main__":
     artistas_ny_2025 = [
-    
         "Taylor Swift","Dua Lipa", "Gracie Abrams", "Tate McRae", "Benson Boone", 
         "Chappell Roan", "Mary J. Blige", "Sabrina Carpenter", "Katy Perry",
         "Deftones", "Ghost", "Avril Lavigne", "Pierce The Veil", 
@@ -145,13 +195,18 @@ if __name__ == "__main__":
         "Stray Kids","The Weeknd","Justin Timberlake","Adele","Ed Sheeran","Lady Gaga"               
     ]
 
+    MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
+    MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
+    assert MINIO_ACCESS_KEY is not None, "Falta MINIO_ACCESS_KEY"
+    assert MINIO_SECRET_KEY is not None, "Falta MINIO_SECRET_KEY"
+
     print("Cargando base de datos de paradas de metro...")
     df_metro = cargar_paradas_df()
 
     print("Iniciando descarga de setlists...")
-    setlists = fetch_all_setlists_nyc_2025(page_sleep=1.2)
+    setlists = fetch_all_setlists_nyc_2025(pagina_inicio=3)
     
-    # Pasamos df_metro a la función para procesar las paradas durante la creación del DF
+    
     df_completo = to_dataframe(setlists, df_metro)
 
     df = df_completo[df_completo['nombre_evento'].isin(artistas_ny_2025)].copy()
@@ -171,15 +226,33 @@ if __name__ == "__main__":
     }
 
     df['hora_inicio'] = df['venue_name'].map(mapeo_horarios).fillna("20:00")
-    df['hora_salida_estimada'] = df['hora_inicio'].apply(lambda x: pd.Timestamp(x) + pd.Timedelta(hours=3))   
+    df['hora_salida_estimada'] = df['hora_inicio'].apply(
+        lambda x: (pd.Timestamp(x) + pd.Timedelta(hours=3)).strftime("%H:%M")
+    )
     df['score'] = 1.0
     df['nombre_evento'] = "Concierto: " + df['nombre_evento']
 
-    # Limpieza final de columnas
     df = df.drop(columns=["lat", "lng", "venue_name"]).reset_index(drop=True)
+    df = df.sort_values(by=["fecha_inicio", "hora_inicio"]).reset_index(drop=True)
 
-    print(df.head(10))
-    
-    if not df.empty:
-        df.to_csv("setlistfm_conciertos_con_metro_2025.csv", index=False, encoding="utf-8")
-        print(f"\nGuardado: setlistfm_conciertos_con_metro_2025.csv con {len(df)} registros.")
+    if df.empty:
+        print("No hay eventos para subir.")
+        exit()
+
+    print("Subiendo archivos a MinIO...")
+    subidos = 0
+    for fecha, df_dia in df.groupby("fecha_inicio", sort=True):
+        if df_dia.empty:
+            continue
+
+        df_dia = df_dia.reset_index(drop=True)
+        object_name = f"grupo5/raw/eventos_nyc/dia={fecha}/eventos_concierto_{fecha}.parquet"
+
+        try:
+            upload_df_parquet(MINIO_ACCESS_KEY, MINIO_SECRET_KEY, object_name, df_dia)
+            print(f"Subido: {DEFAULT_BUCKET}/{object_name} (número de filas: {len(df_dia)})")
+            subidos += 1
+        except Exception as e:
+            print(f"Error subiendo {object_name}: {e}")
+
+    print(f"\nTerminado. {subidos} archivos subidos a MinIO.")
