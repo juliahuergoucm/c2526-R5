@@ -4,8 +4,11 @@ import requests_cache
 import requests
 import pandas as pd
 from retry_requests import retry
+import os
+import io
 
-def extraccion(url, fechaini,fechafin):
+def extraccion(fechaini,fechafin):
+    url = "https://archive-api.open-meteo.com/v1/archive"
     #cache_session = requests_cache.CachedSession('.cache', expire_after=-1) #Guarda en un archivo local .cache para no tener que pedirlo de nuevo
     #retry_session = retry(cache_session, retries=5, backoff_factor=0.2)
 
@@ -60,17 +63,30 @@ def transformar_a_df(respuestas):
     df = pd.DataFrame(datos)
     return df
 
-def extraccion_historico(fechaini = "2025-01-01", fechafin = "2026-01-01"):
-    url_historico = "https://archive-api.open-meteo.com/v1/archive"
-    return extraccion(url_historico, fechaini, fechafin )
+def separar_dias(df):
+    ACCESS_KEY = os.getenv('MINIO_ACCESS_KEY')
+    assert ACCESS_KEY is not None, 'La variable de entorno MINIO_ACCESS_KEY no está definida.'
+    SECRET_KEY = os.getenv('MINIO_SECRET_KEY')
+    assert SECRET_KEY is not None, 'La variable de entorno MINIO_SECRET_KEY no está definida.'
+    from minio import Minio
+    client = Minio(endpoint='minio.fdi.ucm.es', access_key=ACCESS_KEY, secret_key=SECRET_KEY)
+    for dia, df_dia in df.groupby(df['Date'].dt.date):
+        subir_a_MinIO(dia, df_dia, client)
+        
+def subir_a_MinIO(dia, df_dia, client):
+    buffer = io.BytesIO()
+    df_dia.to_parquet(buffer)
+    name = 'grupo5/processed/Clima/Clima_Historico/' + str(dia) + '/Clima_Historico_' + str(dia) +'.parquet'
+    buffer.seek(0)  # Volver al inicio del buffer para que se lea correctamente
+    client.put_object(bucket_name='pd1', object_name=name,
+    data=buffer, length=buffer.getbuffer().nbytes, content_type='application/octet-stream')
+    print(f'DataFrame guardado como parquet y subido a MinIO como grupo5/processed/Clima/DataFrame_Clima_TiempoReal.parquet en el bucket pd1.')
 
-def extraccion_actual():
-    url_actual = "https://api.open-meteo.com/v1/forecast"
-    return extraccion(url_actual, )
 
+def extraccion_historico(fechaini = "2024-12-31", fechafin = "2026-01-01"):
+    return extraccion(fechaini, fechafin)
 if __name__ == "__main__":
-    
-    
     df_historico = extraccion_historico()
-    df_actual = extraccion()
-    print(df)
+    separar_dias(df_historico)
+    
+    
