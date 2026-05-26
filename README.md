@@ -8,7 +8,7 @@
 1. [Descripción de los objetivos](#1-descripción-de-los-objetivos)
 2. [Estructura del repositorio](#2-estructura-del-repositorio)
 3. [Almacenamiento en MinIO](#3-almacenamiento-en-minio)
-4. [Configuración del entorno de desarrollo](#4-configuración-del-entorno-de-desarrollo)
+4. [Configuración del entorno](#4-configuración-del-entorno)
 5. [Ejecución de los pipelines](#5-ejecución-de-los-pipelines)
 6. [Arquitectura interna del pipeline](#6-arquitectura-interna-del-pipeline)
 7. [Uso de notebooks](#7-uso-de-notebooks)
